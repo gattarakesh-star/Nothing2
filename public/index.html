@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Video Quality Checker</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0f1115;
+    color: #e6e6e6;
+    display: flex;
+    justify-content: center;
+    padding: 40px 16px;
+  }
+  .card {
+    width: 100%;
+    max-width: 640px;
+  }
+  h1 {
+    font-size: 1.4rem;
+    margin-bottom: 4px;
+  }
+  p.sub {
+    color: #9aa0a6;
+    margin-top: 0;
+    margin-bottom: 24px;
+    font-size: 0.9rem;
+  }
+  .input-row {
+    display: flex;
+    gap: 8px;
+  }
+  input[type="text"] {
+    flex: 1;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid #2a2d34;
+    background: #1a1d23;
+    color: #fff;
+    font-size: 1rem;
+  }
+  button {
+    padding: 12px 18px;
+    border-radius: 8px;
+    border: none;
+    background: #4f8cff;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 1rem;
+  }
+  button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  #status {
+    margin-top: 16px;
+    font-size: 0.9rem;
+    color: #9aa0a6;
+  }
+  .video-meta {
+    margin-top: 24px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .video-meta img {
+    width: 120px;
+    border-radius: 8px;
+  }
+  table {
+    width: 100%;
+    margin-top: 20px;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid #23262d;
+  }
+  th {
+    color: #9aa0a6;
+    font-weight: 500;
+  }
+  .error {
+    color: #ff6b6b;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Video Quality Checker</h1>
+    <p class="sub">Paste a video link to see all available qualities.</p>
+
+    <div class="input-row">
+      <input type="text" id="urlInput" placeholder="Paste video URL here..." />
+      <button id="checkBtn">Check</button>
+    </div>
+
+    <div id="status"></div>
+    <div id="meta" class="video-meta" style="display:none;">
+      <img id="thumb" src="" alt="thumbnail" />
+      <div id="title"></div>
+    </div>
+    <div id="results"></div>
+  </div>
+
+<script>
+  const btn = document.getElementById('checkBtn');
+  const input = document.getElementById('urlInput');
+  const status = document.getElementById('status');
+  const results = document.getElementById('results');
+  const meta = document.getElementById('meta');
+  const thumb = document.getElementById('thumb');
+  const title = document.getElementById('title');
+
+  async function checkFormats() {
+    const url = input.value.trim();
+    results.innerHTML = '';
+    meta.style.display = 'none';
+    if (!url) {
+      status.textContent = 'Please paste a URL first.';
+      return;
+    }
+    status.textContent = 'Fetching available qualities...';
+    btn.disabled = true;
+
+    try {
+      const res = await fetch('/api/formats?url=' + encodeURIComponent(url));
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        status.innerHTML = '';
+        results.innerHTML = '<div class="error">' + (data.error || 'Something went wrong.') + '</div>';
+        return;
+      }
+
+      status.textContent = '';
+      title.textContent = data.title || '';
+      if (data.thumbnail) {
+        thumb.src = data.thumbnail;
+        meta.style.display = 'flex';
+      }
+
+      const rows = data.formats.map(f => `
+        <tr>
+          <td>${f.format_id ?? ''}</td>
+          <td>${f.resolution ?? ''}</td>
+          <td>${f.ext ?? ''}</td>
+          <td>${f.fps ?? ''}</td>
+          <td>${f.vcodec && f.vcodec !== 'none' ? 'video' : (f.acodec && f.acodec !== 'none' ? 'audio' : '')}</td>
+          <td>${f.filesize ? (f.filesize / (1024*1024)).toFixed(1) + ' MB' : ''}</td>
+        </tr>
+      `).join('');
+
+      results.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>Resolution</th><th>Ext</th><th>FPS</th><th>Type</th><th>Size</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    } catch (err) {
+      status.innerHTML = '';
+      results.innerHTML = '<div class="error">Request failed: ' + err.message + '</div>';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  btn.addEventListener('click', checkFormats);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') checkFormats(); });
+</script>
+</body>
+</html>
