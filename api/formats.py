@@ -1,6 +1,8 @@
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import json
+import os
+import base64
 import yt_dlp
 
 
@@ -10,6 +12,20 @@ def build_headers(handler):
     handler.send_header("Access-Control-Allow-Origin", "*")
     handler.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
     handler.end_headers()
+
+
+def get_cookie_file():
+    """Decode YT_COOKIES_B64 env var into a temp file yt-dlp can read."""
+    cookies_b64 = os.environ.get("YT_COOKIES_B64")
+    if not cookies_b64:
+        return None
+    cookie_path = "/tmp/cookies.txt"
+    try:
+        with open(cookie_path, "wb") as f:
+            f.write(base64.b64decode(cookies_b64))
+        return cookie_path
+    except Exception:
+        return None
 
 
 class handler(BaseHTTPRequestHandler):
@@ -36,10 +52,11 @@ class handler(BaseHTTPRequestHandler):
             "quiet": True,
             "no_warnings": True,
             "skip_download": True,
-            # Uncomment and point to a cookies file if YouTube starts
-            # blocking requests from Vercel's servers:
-            # "cookiefile": "/tmp/cookies.txt",
         }
+
+        cookie_file = get_cookie_file()
+        if cookie_file:
+            ydl_opts["cookiefile"] = cookie_file
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
